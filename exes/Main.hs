@@ -1,7 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Main where
 
+import Prelude hiding (filter)
+import Control.Applicative
+import Control.Applicative.Combinators hiding (option)
+import Control.Monad (guard, replicateM)
+import Data.Bits (Bits (..))
+import Data.Filtrable (Filtrable (..), (<$?>))
+import Data.Foldable (Foldable (..), asum)
+import Data.Word
 import qualified Distribution.Server as Server
 import Distribution.Server (ListenOn(..), ServerConfig(..), Server)
 import Distribution.Server.Framework.Feature
@@ -10,6 +19,9 @@ import Distribution.Server.Framework.BackupRestore (equalTarBall, restoreServerB
 import Distribution.Server.Framework.BackupDump (dumpServerBackup, BackupType(..))
 import qualified Distribution.Server.Framework.BlobStorage as BlobStorage
 import Distribution.Server.Util.SigTerm
+import Text.Regex.Applicative (RE)
+import qualified Text.Regex.Applicative as RE
+import qualified Text.Regex.Applicative.Lex as RE
 
 import Distribution.Simple.Utils
          ( topHandler, dieNoVerbosity )
@@ -56,7 +68,6 @@ import Control.Arrow
          ( second )
 import qualified Data.ByteString.Lazy as BS
 import qualified Distribution.Server.Util.GZip as GZip
-import qualified Text.Parsec as Parse
 
 import Paths_hackage_server as Paths (version)
 
@@ -248,7 +259,7 @@ runCommand =
           flagRunPort (\v flags -> flags { flagRunPort = v })
           (reqArgFlag "PORT")
       , option [] ["ip"]
-          "IPv4 address to listen on (default 127.0.0.1)"
+          "IP address to listen on (default ::1)"
           flagRunIP (\v flags -> flags { flagRunIP = v })
           (reqArgFlag "IP")
       , option [] ["base-uri"]
@@ -387,22 +398,37 @@ runAction opts = do
 
     checkIPOpt defaults Nothing    = return (loIP (confListenOn defaults))
     checkIPOpt _        (Just str) =
-      let pQuad = do ds <- Parse.many1 Parse.digit
-                     let quad = read ds :: Integer
-                     when (quad < 0 || quad > 255) $ fail "bad IP address"
-                     return quad
-          pIPv4 = do q1 <- pQuad
-                     void $ Parse.char '.'
-                     q2 <- pQuad
-                     void $ Parse.char '.'
-                     q3 <- pQuad
-                     void $ Parse.char '.'
-                     q4 <- pQuad
-                     Parse.eof
-                     return (q1, q2, q3, q4)
-      in case Parse.parse pIPv4 str str of
-         Left err -> fail (show err)
-         Right _ -> return str
+      case RE.match (() <$ ipv6RE <|> () <$ ipv4RE) str of
+         Nothing -> fail "Invalid IP address"
+         Just _ -> pure str
+
+    ipv6RE :: RE Char [Word16]
+    ipv6RE = asum [(++) <$> lhs n <*> rhs (8 - n) | n <- [0..8]]
+      where
+        lhs, rhs, lhs', rhs' :: Int -> RE Char [Word16]
+        lhs 0 = pure []
+        lhs n = lhs' (n - 1)
+        lhs' n = padRight n 0 <$> (guard (n >= 1) *> count' 1 n (h16 <* ":") <|> [] <$ ":") <* ":"
+
+        rhs 0 = pure []
+        rhs 1 = replicateM 1 h16
+        rhs n = rhs' (n - 2)
+        rhs' n = asum <$> sequenceA [count n (h16 <* ":"), ls32]
+
+        h16 :: RE Char Word16
+        h16 = (\ (n, xs) -> fromIntegral n <$ guard (4 >= length xs)) <$?> RE.withMatched (RE.natural 16)
+        ls32 :: RE Char [Word16]
+        ls32 = sequenceA [h16 <* ":", h16] <|> (\ case [a, b, c, d] -> Just [pack a b, pack c d]; _ -> Nothing) <$?> ipv4RE
+        pack a b = fromIntegral a `shiftL` 8 .|. fromIntegral b
+
+        padRight n a as
+          | n > length as = as <|> replicate (n - length as) a
+          | otherwise     = as
+
+    ipv4RE :: RE Char [Word8]
+    ipv4RE = (\ case as@[_, _, _, _] -> Just (fromIntegral <$> as); _ -> Nothing) <$?> sepBy d8 "."
+      where
+        d8 = (\ n -> n <$ guard (n < 0x100)) <$?> RE.natural 10
 
     checkCacheDelay defaults Nothing    = return (confCacheDelay defaults)
     checkCacheDelay _        (Just str) = case reads str of

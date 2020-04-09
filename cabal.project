@@ -8,6 +8,41 @@
 
 packages: .
 
+source-repository-package
+  type: git
+  location: https://github.com/strake/happstack-server.hs
+  tag: 6f1f17fc6cf587e41fec09eca1df2e07b42b9306
+
+source-repository-package
+  type: git
+  location: https://github.com/strake/text.hs
+  tag: 7b4ebbf400338111aae40ae3b668854cfe7272b7
+
+source-repository-package
+  type: git
+  location: https://github.com/text-utf8/attoparsec
+  tag: 785af7929415669729f51ab0abeaac4a92451900
+
+source-repository-package
+  type: git
+  location: https://github.com/strake/lex-applicative.hs
+  tag: 066b9e150bee0c3beb38ccb90c87f57ed1f7d84e
+
+source-repository-package
+  type: git
+  location: https://github.com/feuerbach/regex-applicative
+  tag: 1a37a6fb036a57562a11b76885a87e151fb6c34e
+
+source-repository-package
+  type: git
+  location: https://github.com/strake/ucd.hs
+  tag: 29e5525e8670b88216311b51747c825fa3513195
+
+source-repository-package
+  type: git
+  location: https://github.com/strake/unicode-transforms.hs
+  tag: a6690fb4743d939c9574520f608a2158d31d69ca
+
 -----------------------------------------------------------------------------
 -- Anti-constraints
 

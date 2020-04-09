@@ -98,7 +98,7 @@ defaultServerConfig = do
                     },
     confListenOn  = ListenOn {
                         loPortNum = 8080,
-                        loIP = "127.0.0.1"
+                        loIP = "::1"
                     },
     confStateDir  = "state",
     confStaticDir = dataDir,
@@ -347,7 +347,7 @@ setUpTemp sconf secs = do
 
 runServer :: (ToMessage a) => ListenOn -> ServerPartT IO a -> IO ()
 runServer listenOn f
-    = do socket <- bindIPv4 (loIP listenOn) (loPortNum listenOn)
+    = do socket <- bindIP (loIP listenOn) (loPortNum listenOn)
          simpleHTTPWithSocket socket nullConf f
 
 -- | Static 503 page, based on Happstack's 404 page.
