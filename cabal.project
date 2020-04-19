@@ -3,8 +3,8 @@
 -- If in doubt, use GHC 8.2.2 to build hackage-server; see
 -- 'tested-with' in 'hackage-server.cabal' for a list of currently
 -- CI-validated GHC versions
---
--- with-compiler: ghc-8.2.2
+
+with-compiler: ghc-8.6.5
 
 packages: . snowball.hs
 
