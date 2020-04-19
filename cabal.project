@@ -25,6 +25,12 @@ source-repository-package
 
 source-repository-package
   type: git
+  location: https://github.com/strake/hackage-security.hs
+  tag: 4e74d5d743980c77cb7e2fd8a5c6d1e5f232b6e6
+  subdir: hackage-security hackage-security-HTTP
+
+source-repository-package
+  type: git
   location: https://github.com/strake/lex-applicative.hs
   tag: 066b9e150bee0c3beb38ccb90c87f57ed1f7d84e
 
