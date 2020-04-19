@@ -1,0 +1,165 @@
+
+New patches:
+
+[unrevert
+anon**20200410191802
+ Ignore-this: a0bfb6b81f88207cc2535d87c14555b20781da1ddb173b531aa1bbba378ceb4b48d3c82e05805e67
+] hunk ./src/NLP/Snowball/IO/Unsafe/C.hs 32
+ -- | The foreign @sb_stemmer_list@ function.
+ foreign import ccall unsafe "sb_stemmer_list"
+     list :: Prelude.IO (Foreign.Ptr Foreign.CString)
+-{-# INLINABLE list #-}
++{- INLINABLE list -}
+ 
+ -- | The foreign @sb_stemmer_new@ function.
+ foreign import ccall unsafe "sb_stemmer_new"
+
+Context:
+
+[doctest examples
+Dag Odenhall <dag.odenhall@gmail.com>**20130915172300
+ Ignore-this: 7e13f841dc0e6de0492ff91c2a5fc2c4
+] 
+[hspec tests
+Dag Odenhall <dag.odenhall@gmail.com>**20130915162610
+ Ignore-this: 47bf8f1fe1896503a3f921b752fd438c
+] 
+[documentation
+Dag Odenhall <dag.odenhall@gmail.com>**20130915160908
+ Ignore-this: 638e37ade3c6e1ea9db219b94a145a83
+] 
+[rewrite all the things
+Dag Odenhall <dag.odenhall@gmail.com>**20130903204537
+ Ignore-this: d9671566d26698c8f025ab2cc11500fc
+] 
+[we can use NULL for "UTF_8"
+Dag Odenhall <dag.odenhall@gmail.com>**20130827162212
+ Ignore-this: 2cca570af4e758efe7323a09669c8bce
+] 
+[type safe interface
+Dag Odenhall <dag.odenhall@gmail.com>**20130827114303
+ Ignore-this: 39a07078f4b6a6e1a083d653913033d0
+] 
+[some haddocks and description rewording
+Dag Odenhall <dag.odenhall@gmail.com>**20130826175315
+ Ignore-this: 5fecaeb339dfea096a466b53199633ed
+] 
+[use one stemmer per algorithm in fixture tests
+Dag Odenhall <dag.odenhall@gmail.com>**20130826170358
+ Ignore-this: 594e6f03fca00f60ea0867e52622c3d7
+] 
+[use FinalizerPtr type synonym
+Dag Odenhall <dag.odenhall@gmail.com>**20130826125329
+ Ignore-this: ce632bd5653f9e7d3494cc25ff3b114a
+] 
+[share stemmers between calls to stem
+Dag Odenhall <dag.odenhall@gmail.com>**20130825220112
+ Ignore-this: a730d3fe7df52f15b06716c26aaacd43
+ 
+ This makes `map stem` as fast as the previous `stems` function but without
+ needing any scary rewrite rules.  Thus we remove `stems` and its rewrite rules
+ and rename `stems'` back to `stems` again.  We don't use this trick in `stems`
+ though since we don't want to lock a shared stemmer for much more than a single
+ call, and I'm not quite sure how sharing is affected by concurrency.
+ 
+] 
+[mark polymorphic functions inlinable
+Dag Odenhall <dag.odenhall@gmail.com>**20130825180125
+ Ignore-this: b16071165fe5f8ca9389d71d4031111d
+ 
+ This permits local specialization downstream with a significant effect on
+ performance in the benchmarks, while still respecting the compilation options.
+ 
+] 
+[rename stems to stems' and add a new lazy stems function
+Dag Odenhall <dag.odenhall@gmail.com>**20130825174856
+ Ignore-this: d8f7f083e78f7c7e3a1d2dbe20d7044a
+ 
+ The old `stems` function (now `stems'`) is strict and thus not equivalent to
+ `map` for lists, which meant the rewrite rule was not correct.  The new `stems`
+ function is as lazy as `fmap` is for the chosen `Functor`.
+ 
+] 
+[coding style
+Dag Odenhall <dag.odenhall@gmail.com>**20130825140033
+ Ignore-this: db0645ada69d297c64a313bcbd7ca192
+] 
+[sb_stemmer_stem takes a byte count not character count
+Dag Odenhall <dag.odenhall@gmail.com>**20130825131741
+ Ignore-this: ad0c39bc2eecf0273374ba98b08c837c
+ 
+ This change *finally* means we actually handle Unicode correctly, and we can
+ rely on the UTF-8 interface completely, which in turn means we don't need to
+ depend on ICU.  This also turns out to be a lot faster!
+ 
+ The previous work-around didn't actually fix Unicode handling at all; it merely
+ masked the problem by using character sets where the relevant alphabets were
+ all in the single-byte range.
+ 
+] 
+[rename Struct to SbStemmer
+Dag Odenhall <dag.odenhall@gmail.com>**20130825121055
+ Ignore-this: 4c99e3b07ccab01323e60d4d5b93bdd3
+] 
+[generalize to traversable
+Dag Odenhall <dag.odenhall@gmail.com>**20130825114211
+ Ignore-this: 108b1165dde0094c06fff8f45e7b7b99
+] 
+[redundant brackets
+Dag Odenhall <dag.odenhall@gmail.com>**20130825113657
+ Ignore-this: d135dc231c22c2d5f913e77fca70ab0
+] 
+[stemmer has been updated
+Dag Odenhall <dag.odenhall@gmail.com>**20130818115423
+ Ignore-this: 5eea6bf259ac30dcbb396a7a7d311d89
+] 
+[compile fixture tests with full optimization
+Dag Odenhall <dag.odenhall@gmail.com>**20130818114543
+ Ignore-this: 70cbee49ab85ca70a0c61620d09db929
+] 
+[port fixture tests to async
+Dag Odenhall <dag.odenhall@gmail.com>**20130818114525
+ Ignore-this: 4dd5e4f0aef5064e946a55e8a1db84fb
+] 
+[port fixture tests to new stemmer
+Dag Odenhall <dag.odenhall@gmail.com>**20130818114236
+ Ignore-this: ddeaf0d2565e6fd3813fd3c47b62c301
+] 
+[header not needed in foreign imports
+Dag Odenhall <dag.odenhall@gmail.com>**20130818113300
+ Ignore-this: 6f1dee25d740c5c812bc1dad8fb3e3ea
+] 
+[port tests to tasty
+Dag Odenhall <dag.odenhall@gmail.com>**20130818111855
+ Ignore-this: 5934e144b9c8e1211d8dfc454aafe4b0
+] 
+[use new module name in newStemmer error
+Dag Odenhall <dag.odenhall@gmail.com>**20130818002530
+ Ignore-this: df7fbac72c97a29027445e02be1de920
+] 
+[more reliable rewrite rule
+Dag Odenhall <dag.odenhall@gmail.com>**20130818001357
+ Ignore-this: f9bd5b35a946e3e7004165ac59fed51f
+] 
+[use parallel-io for fixture tests
+Dag Odenhall <dag.odenhall@gmail.com>**20130104065218
+ Ignore-this: 636013af73aef885ba37ac91b80214db
+] 
+[also test stemmer package against fixtures
+Dag Odenhall <dag.odenhall@gmail.com>**20130103034501
+ Ignore-this: 269e505180fe9cb603d6f610bcbe63c
+] 
+[rename executable sources
+Dag Odenhall <dag.odenhall@gmail.com>**20130103032052
+ Ignore-this: d25dc24f28d22e132ff20b753cce1dbb
+] 
+[test is a phony
+Dag Odenhall <dag.odenhall@gmail.com>**20130103031328
+ Ignore-this: e1295f9733bfe76a0ec9f00d618a3d5d
+] 
+[TAG 1.0.0.1
+Dag Odenhall <dag.odenhall@gmail.com>**20121222185150
+ Ignore-this: 9ba4d56c6d9cc0d506c6b59c0f5d1e46
+] 
+Patch bundle hash:
+c76d2a5ff327ff6a850e26b1e41ca8bb45c1cb02

@@ -65,7 +65,7 @@ pkgSearchConfig =
     normaliseQueryToken tok =
       let tokFold = T.toCaseFold tok
           -- we don't need to use extraStems here because the index is inflated by it already.
-          tokStem = stem English tokFold
+          tokStem = stemText $ stem English tokFold
        in \field -> case field of
                       NameField        -> tokFold
                       SynopsisField    -> tokStem

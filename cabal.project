@@ -6,7 +6,7 @@
 --
 -- with-compiler: ghc-8.2.2
 
-packages: .
+packages: . snowball.hs
 
 source-repository-package
   type: git

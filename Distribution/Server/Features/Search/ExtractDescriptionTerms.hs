@@ -29,6 +29,7 @@ extraStems ss x = x : mapMaybe (`T.stripSuffix` x) ss
 extractSynopsisTerms :: [Text] -> Set Text -> String -> [Text]
 extractSynopsisTerms ss stopWords =
       concatMap (extraStems ss) --note this adds extra possible stems, it doesn't delete any given one.
+    . fmap NLP.stemText
     . NLP.stems NLP.English
     . filter (`Set.notMember` stopWords)
     . map (T.toCaseFold . T.pack)
@@ -57,6 +58,7 @@ splitTok tok =
 extractDescriptionTerms :: [Text] -> Set Text -> String -> [Text]
 extractDescriptionTerms ss stopWords =
       concatMap (extraStems ss)
+    . fmap NLP.stemText
     . NLP.stems NLP.English
     . filter (`Set.notMember` stopWords)
     . map (T.toCaseFold . T.pack)
