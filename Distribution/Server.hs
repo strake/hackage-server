@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns, RecordWildCards #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 module Distribution.Server (
     -- * Server control
     Server(..),
@@ -12,6 +13,7 @@ module Distribution.Server (
     -- * Server configuration
     ListenOn(..),
     ServerConfig(..),
+    TLSConfig(..),
     defaultServerConfig,
     hasSavedState,
 
@@ -25,6 +27,7 @@ module Distribution.Server (
  ) where
 
 import Happstack.Server.SimpleHTTP
+import Happstack.Server.SimpleHTTPS
 import Distribution.Server.Framework
 import qualified Distribution.Server.Framework.BackupRestore as Import
 import qualified Distribution.Server.Framework.BlobStorage as BlobStorage
@@ -50,6 +53,7 @@ import Network.URI (URI(..), URIAuth(URIAuth), nullURI)
 import Network.BSD (getHostName)
 import Data.List (foldl', nubBy)
 import Data.Int  (Int64)
+import Data.Bool (bool)
 import Control.Arrow (second)
 import Data.Function (on)
 import qualified System.Log.Logger as HsLogger
@@ -62,7 +66,14 @@ import Paths_hackage_server (getDataDir)
 
 data ListenOn = ListenOn {
   loPortNum :: Int,
-  loIP :: String
+  loIP :: String,
+  loTls :: Maybe TLSConfig
+} deriving (Show)
+
+data TLSConfig = TLSConfig {
+  tlsCertPath :: FilePath,
+  tlsKeyPath :: FilePath,
+  tlsCAPath :: Maybe FilePath
 } deriving (Show)
 
 data ServerConfig = ServerConfig {
@@ -97,8 +108,9 @@ defaultServerConfig = do
                       uriAuthority = Just (URIAuth "" hostName (':' : show portnum))
                     },
     confListenOn  = ListenOn {
-                        loPortNum = 8080,
-                        loIP = "::1"
+                        loPortNum = portnum,
+                        loIP = "::1",
+                        loTls = Nothing
                     },
     confStateDir  = "state",
     confStaticDir = dataDir,
@@ -346,9 +358,12 @@ setUpTemp sconf secs = do
   where listenOn = confListenOn sconf
 
 runServer :: (ToMessage a) => ListenOn -> ServerPartT IO a -> IO ()
-runServer listenOn f
-    = do socket <- bindIP (loIP listenOn) (loPortNum listenOn)
-         simpleHTTPWithSocket socket nullConf f
+runServer listenOn f = do
+    socket <- bindIP (loIP listenOn) (loPortNum listenOn)
+    case loTls listenOn of
+        Nothing -> simpleHTTPWithSocket socket nullConf f
+        Just TLSConfig {..} ->
+            simpleHTTPSWithSocket socket nullTLSConf { tlsCert = tlsCertPath, tlsKey = tlsKeyPath, tlsCA = tlsCAPath } f
 
 -- | Static 503 page, based on Happstack's 404 page.
 html503 :: String

@@ -12,7 +12,7 @@ import Data.Filtrable (Filtrable (..), (<$?>))
 import Data.Foldable (Foldable (..), asum)
 import Data.Word
 import qualified Distribution.Server as Server
-import Distribution.Server (ListenOn(..), ServerConfig(..), Server)
+import Distribution.Server (ListenOn(..), ServerConfig(..), Server, TLSConfig(..))
 import Distribution.Server.Framework.Feature
 import Distribution.Server.Framework.Logging
 import Distribution.Server.Framework.BackupRestore (equalTarBall, restoreServerBackup)
@@ -198,6 +198,7 @@ data RunFlags = RunFlags {
     flagRunVerbosity       :: Flag Verbosity,
     flagRunPort            :: Flag String,
     flagRunIP              :: Flag String,
+    flagRunTLSConfig       :: Flag TLSConfig,
     flagRunHostURI         :: Flag String,
     flagRunStateDir        :: Flag FilePath,
     flagRunStaticDir       :: Flag FilePath,
@@ -216,6 +217,7 @@ defaultRunFlags = RunFlags {
     flagRunVerbosity       = Flag Verbosity.normal,
     flagRunPort            = NoFlag,
     flagRunIP              = NoFlag,
+    flagRunTLSConfig       = NoFlag,
     flagRunHostURI         = NoFlag,
     flagRunStateDir        = NoFlag,
     flagRunStaticDir       = NoFlag,
@@ -315,7 +317,8 @@ runAction opts = do
         tmpDir    = fromFlagOrDefault (confTmpDir    defaults) (flagRunTmpDir    opts)
         listenOn  = (confListenOn defaults) {
                        loPortNum = port,
-                       loIP      = ip
+                       loIP      = ip,
+                       loTls     = tlsConfig
                     }
         config    = defaults {
                         confHostUri    = hosturi,
@@ -331,6 +334,7 @@ runAction opts = do
         linkBlobs = fromFlag (flagRunBackupLinkBlobs opts)
         scrubbed  = fromFlag (flagRunBackupScrubbed  opts)
         liveTemplates = fromFlag (flagRunLiveTemplates opts)
+        tlsConfig = flagToMaybe (flagRunTLSConfig opts)
 
     checkBlankServerState =<< Server.hasSavedState config
     checkStaticDir staticDir (flagRunStaticDir opts)
