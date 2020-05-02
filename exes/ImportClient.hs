@@ -142,6 +142,8 @@ data GlobalFlags = GlobalFlags {
     globalVersion :: Flag Bool
   }
 
+$(mkLens (++ "L") ''GlobalFlags)
+
 defaultGlobalFlags :: GlobalFlags
 defaultGlobalFlags = GlobalFlags {
     globalVersion = Flag False
@@ -162,12 +164,14 @@ globalCommand = CommandUI {
                 | x <- ["users", "metadata", "tarballs"]],
     commandDefaultFlags = defaultGlobalFlags,
     commandOptions      = \_ ->
-      [option ['V'] ["version"]
+      [option' ['V'] ["version"]
          "Print version information"
-         globalVersion (\v flags -> flags { globalVersion = v })
+         globalVersionL
          (noArg (Flag True))
       ]
   }
+
+option' x names desc = option x names desc <$> view . cloneLens <*> set . cloneLens
 
 
 -------------------------------------------------------------------------------
@@ -180,6 +184,8 @@ data UsersFlags = UsersFlags {
     usersAddresses :: Flag FilePath,
     usersJobs      :: Flag String
   }
+
+$(mkLens (++ "L") UsersFlags)
 
 defaultUsersFlags :: UsersFlags
 defaultUsersFlags = UsersFlags {
@@ -203,21 +209,21 @@ usersCommand =
                   "User account names and passwords can be imported from a "
                ++ "file in the\napache 'htpasswd' format.\n"
     options _  =
-      [ option [] ["htpasswd"]
+      [ option' [] ["htpasswd"]
           "Import an apache 'htpasswd' user account database file"
-          usersHtPasswd (\v flags -> flags { usersHtPasswd = v })
+          usersHtPasswdL
           (reqArgFlag "HTPASSWD")
-      , option [] ["all-uploaders"]
+      , option' [] ["all-uploaders"]
           "Add all new accounts to the uploaders group (use with --htpasswd)"
-          usersUploaders (\v flags -> flags { usersUploaders = v })
+          usersUploadersL
           (noArg (Flag True))
-      , option [] ["addresses"]
+      , option' [] ["addresses"]
           "Import user email addresses"
-          usersAddresses (\v flags -> flags { usersAddresses = v })
+          usersAddressesL
           (reqArgFlag "ADDRESSES")
-      , option [] ["jobs"]
+      , option' [] ["jobs"]
           "The level of concurrency to use when uploading"
-          usersJobs (\v flags -> flags { usersJobs = v })
+          usersJobsL
           (reqArgFlag "N")
       ]
 
@@ -346,6 +352,8 @@ data MetadataFlags = MetadataFlags {
     metadataJobs      :: Flag String
   }
 
+$(mkLens (++ "L") ''MetadataFlags)
+
 defaultMetadataFlags :: MetadataFlags
 defaultMetadataFlags = MetadataFlags {
     metadataIndex     = NoFlag,
@@ -367,17 +375,17 @@ metadataCommand =
                   "The cabal files can be imported from hackage index file,"
                ++ "while upload details\ncan be got from the hackage log.\n"
     options _  =
-      [ option [] ["index"]
+      [ option' [] ["index"]
           "Import all the packages from a hackage '00-index.tar' file"
-          metadataIndex (\v flags -> flags { metadataIndex = v })
+          metadataIndexL
           (reqArgFlag "INDEX")
-      , option [] ["upload-log"]
+      , option' [] ["upload-log"]
           "Import who uploaded what when, and set maintainer groups"
-          metadataUploadLog (\v flags -> flags { metadataUploadLog = v })
+          metadataUploadLogL
           (reqArgFlag "LOG")
-      , option [] ["jobs"]
+      , option' [] ["jobs"]
           "The level of concurrency to use when uploading"
-          metadataJobs (\v flags -> flags { metadataJobs = v })
+          metadataJobsL
           (reqArgFlag "N")
       ]
 
@@ -498,6 +506,8 @@ data TarballFlags = TarballFlags {
     tarballJobs :: Flag String
   }
 
+$(mkLens (++ "L") ''TarballFlags)
+
 defaultTarballFlags :: TarballFlags
 defaultTarballFlags = TarballFlags {
     tarballJobs = NoFlag
@@ -516,9 +526,9 @@ tarballCommand =
     longDesc   = Just $ \_ ->
                      "The package tarballs can be imported directly from\n"
                   ++ " local .tar.gz files.\n"
-    options _  = [ option [] ["jobs"]
+    options _  = [ option' [] ["jobs"]
                    "The level of concurrency to use when uploading tarballs"
-                   tarballJobs (\v flags -> flags { tarballJobs = v })
+                   tarballJobsL
                    (reqArgFlag "N")
                  ]
 
@@ -703,6 +713,8 @@ data DocsFlags = DocsFlags {
     docsJobs :: Flag String
   }
 
+$(mkLens (++ "L") ''DocsFlags)
+
 defaultDocsFlags :: DocsFlags
 defaultDocsFlags = DocsFlags {
     docsJobs = NoFlag
@@ -721,9 +733,9 @@ docsCommand =
     longDesc   = Just $ \_ ->
                      "The package documentation can be imported directly from\n"
                   ++ " local .tar or .tar.gz files of the html bundle."
-    options _  = [ option [] ["jobs"]
+    options _  = [ option' [] ["jobs"]
                    "The level of concurrency to use when uploading documentation"
-                   docsJobs (\v flags -> flags { docsJobs = v })
+                   docsJobsL
                    (reqArgFlag "N")
                  ]
 

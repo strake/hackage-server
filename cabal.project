@@ -36,6 +36,21 @@ source-repository-package
 
 source-repository-package
   type: git
+  location: https://github.com/strake/lens-core.hs
+  tag: 6b39456dfe81a2057cea3d63dd74a36e46ab438f
+
+source-repository-package
+  type: git
+  location: https://github.com/strake/lenz.hs
+  tag: 858191e0bd59cf5520978d5a897c967c79cb2cbd
+
+source-repository-package
+  type: git
+  location: https://github.com/strake/lenz-template.hs
+  tag: 75a14b721e4a69df282313c6835fe7ca453a09c3
+
+source-repository-package
+  type: git
   location: https://github.com/strake/lex-applicative.hs
   tag: 066b9e150bee0c3beb38ccb90c87f57ed1f7d84e
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Main (main) where
 
 import Network.HTTP hiding (password)
@@ -25,6 +26,8 @@ import Data.IORef
 import Data.Time
 import Control.Applicative as App
 import Control.Exception
+import Control.Lens (over, set)
+import Control.Lens.TH (mkLens)
 import Control.Monad
 import Control.Monad.Trans
 import qualified Data.ByteString.Lazy as BS
@@ -46,6 +49,7 @@ import System.Console.GetOpt
 import System.Process
 import System.IO
 import Control.Concurrent
+import Util ((&))
 
 import Paths_hackage_server (version)
 
@@ -85,6 +89,25 @@ data BuildOrder = LatestVersionFirst
                 | MostRecentlyUploadedFirst
                   -- ^ Build in order of upload date.
 
+data BuildFlags = BuildFlags {
+    flagCacheDir   :: Maybe FilePath,
+    flagVerbosity  :: Verbosity,
+    flagRunTime    :: Maybe NominalDiffTime,
+    flagHelp       :: Bool,
+    flagForce      :: Bool,
+    flagContinuous :: Bool,
+    flagKeepGoing  :: Bool,
+    flagDryRun     :: Bool,
+    flagInterval   :: Maybe String,
+    flagPrune      :: Bool,
+    flagUsername   :: Maybe String,
+    flagPassword   :: Maybe String,
+    flagBuildAttempts :: Maybe Int,
+    flagBuildOrder :: Maybe BuildOrder
+}
+
+$(mkLens (++ "L") ''BuildFlags)
+
 srcName :: URI -> String
 srcName uri = fromMaybe (show uri) (uriHostName uri)
 
@@ -114,15 +137,11 @@ main = topHandler $ do
         Init uri auxUris -> initialise opts uri auxUris
         Stats ->
             do stateDir <- canonicalizePath $ bo_stateDir opts
-               let opts' = opts {
-                               bo_stateDir = stateDir
-                           }
+               let opts' = opts { bo_stateDir = stateDir }
                stats opts'
         Build pkgs ->
             do stateDir <- canonicalizePath $ bo_stateDir opts
-               let opts' = opts {
-                               bo_stateDir = stateDir
-                           }
+               let opts' = opts { bo_stateDir = stateDir }
                case bo_continuous opts' of
                  Nothing ->
                    buildOnce opts' pkgs
@@ -847,23 +866,6 @@ putBuildLog reportId buildLogFile = do
 -- Command line handling
 -------------------------
 
-data BuildFlags = BuildFlags {
-    flagCacheDir   :: Maybe FilePath,
-    flagVerbosity  :: Verbosity,
-    flagRunTime    :: Maybe NominalDiffTime,
-    flagHelp       :: Bool,
-    flagForce      :: Bool,
-    flagContinuous :: Bool,
-    flagKeepGoing  :: Bool,
-    flagDryRun     :: Bool,
-    flagInterval   :: Maybe String,
-    flagPrune      :: Bool,
-    flagUsername   :: Maybe String,
-    flagPassword   :: Maybe String,
-    flagBuildAttempts :: Maybe Int,
-    flagBuildOrder :: Maybe BuildOrder
-}
-
 emptyBuildFlags :: BuildFlags
 emptyBuildFlags = BuildFlags {
     flagCacheDir   = Nothing
@@ -885,68 +887,67 @@ emptyBuildFlags = BuildFlags {
 buildFlagDescrs :: [OptDescr (BuildFlags -> BuildFlags)]
 buildFlagDescrs =
   [ Option ['h'] ["help"]
-      (NoArg (\opts -> opts { flagHelp = True }))
+      (NoArg (set flagHelpL True))
       "Show this help text"
 
   , Option ['s'] []
-      (NoArg (\opts -> opts { flagVerbosity = silent }))
+      (NoArg (set flagVerbosityL silent))
       "Silent mode"
 
   , Option ['v'] []
-      (NoArg (\opts -> opts { flagVerbosity = moreVerbose (flagVerbosity opts) }))
+      (NoArg (over flagVerbosityL moreVerbose))
       "Verbose mode (can be listed multiple times e.g. -vv)"
 
   , Option [] ["run-time"]
-      (ReqArg (\mins opts -> case reads mins of
-                             [(mins', "")] -> opts { flagRunTime = Just (fromInteger mins' * 60) }
-                             _ -> error "Can't parse minutes") "MINS")
+      (ReqArg (reads & \ case
+                [(mins, "")] -> set flagRunTimeL $ Just (fromInteger mins * 60)
+                _ -> \ _ -> error "Can't parse minutes") "MINS")
       "Limit the running time of the build client"
 
   , Option [] ["cache-dir"]
-      (ReqArg (\dir opts -> opts { flagCacheDir = Just dir }) "DIR")
+      (ReqArg (set flagCacheDirL . Just) "DIR")
       "Where to put files during building"
 
   , Option [] ["continuous"]
-      (NoArg (\opts -> opts { flagContinuous = True }))
+      (NoArg (set flagContinuousL True))
       "Build continuously rather than just once"
 
   , Option [] ["keep-going"]
-      (NoArg (\opts -> opts { flagKeepGoing = True }))
+      (NoArg (set flagKeepGoingL True))
       "Keep going after errors"
 
   , Option [] ["dry-run"]
-      (NoArg (\opts -> opts { flagDryRun = True }))
+      (NoArg (set flagDryRunL True))
       "Don't record results or upload"
 
   , Option [] ["interval"]
-      (ReqArg (\int opts -> opts { flagInterval = Just int }) "MIN")
+      (ReqArg (set flagIntervalL . Just) "MIN")
       "Set the building interval in minutes (default 30)"
 
   , Option [] ["prune-haddock-files"]
-      (NoArg (\opts -> opts { flagPrune = True }))
+      (NoArg (set flagPruneL True))
       "Remove unnecessary haddock files (frames, .haddock file)"
 
   , Option [] ["init-username"]
-      (ReqArg (\uname opts -> opts { flagUsername = Just uname }) "USERNAME")
+      (ReqArg (set flagUsernameL . Just) "USERNAME")
       "The Hackage user to run the build as (used with init)"
 
   , Option [] ["init-password"]
-      (ReqArg (\passwd opts -> opts { flagPassword = Just passwd }) "PASSWORD")
+      (ReqArg (set flagPasswordL . Just) "PASSWORD")
       "The password of the Hackage user to run the build as (used with init)"
 
   , Option [] ["build-attempts"]
-      (ReqArg (\attempts opts -> case reads attempts of
-                                 [(attempts', "")] -> opts { flagBuildAttempts = Just attempts' }
-                                 _ -> error "Can't parse attempt count") "ATTEMPTS")
+      (ReqArg (reads & \ case
+                [(attempts, "")] -> set flagBuildAttemptsL $ Just attempts
+                _ -> pure $ error "Can't parse attempt count") "ATTEMPTS")
       "How many times to attempt to build a package before giving up"
 
   , Option [] ["build-order"]
-     (ReqArg (\order opts -> let set o = opts { flagBuildOrder = Just o }
-                             in case order of
-                                "latest-version-first" -> set LatestVersionFirst
-                                "recent-uploads-first" -> set MostRecentlyUploadedFirst
-                                _                      -> error "Can't parse build order") "ORDER")
-     "What order should packages be built in? (latest-version-first or recent-uploads-first)"
+      (ReqArg (let set' = set flagBuildOrderL . Just in \ case
+                "latest-version-first" -> set' LatestVersionFirst
+                "recent-uploads-first" -> set' MostRecentlyUploadedFirst
+                _                      -> \ _ -> error "Can't parse build order") "ORDER")
+      "What order should packages be built in? (latest-version-first or recent-uploads-first)"
   ]
 
 validateOpts :: [String] -> IO (Mode, BuildOpts)

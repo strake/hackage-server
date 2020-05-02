@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Main where
 
 import Prelude hiding (filter)
 import Control.Applicative
 import Control.Applicative.Combinators hiding (option)
+import Control.Lens (ALens', cloneLens, set, view)
+import Control.Lens.TH (mkLens)
 import Control.Monad (guard, replicateM)
 import Data.Bits (Bits (..))
 import Data.Filtrable (Filtrable (..), (<$?>))
@@ -61,7 +64,7 @@ import Data.Traversable
 import Data.Version
          ( showVersion )
 import Control.Monad
-         ( void, unless, when, filterM )
+         ( void, unless, when, filterM, join )
 import Control.Applicative
          ( (<$>) )
 import Control.Arrow
@@ -70,6 +73,70 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Distribution.Server.Util.GZip as GZip
 
 import Paths_hackage_server as Paths (version)
+
+
+-------------------------------------------------------------------------------
+-- Flags
+--
+
+data GlobalFlags = GlobalFlags {
+    flagGlobalVersion :: Flag Bool
+  }
+
+data RunFlags = RunFlags {
+    flagRunVerbosity       :: Flag Verbosity,
+    flagRunPort            :: Flag String,
+    flagRunIP              :: Flag String,
+    flagRunTLSConfig       :: Flag TLSConfig,
+    flagRunHostURI         :: Flag String,
+    flagRunStateDir        :: Flag FilePath,
+    flagRunStaticDir       :: Flag FilePath,
+    flagRunTmpDir          :: Flag FilePath,
+    flagRunTemp            :: Flag Bool,
+    flagRunCacheDelay      :: Flag String,
+    flagRunLiveTemplates   :: Flag Bool,
+    -- Online backup flags
+    flagRunBackupOutputDir :: Flag FilePath,
+    flagRunBackupLinkBlobs :: Flag Bool,
+    flagRunBackupScrubbed  :: Flag Bool
+  }
+
+data InitFlags = InitFlags {
+    flagInitVerbosity :: Flag Verbosity,
+    flagInitAdmin     :: Flag String,
+    flagInitStateDir  :: Flag FilePath,
+    flagInitStaticDir :: Flag FilePath
+  }
+
+data BackupFlags = BackupFlags {
+    flagBackupVerbosity   :: Flag Verbosity,
+    flagBackupOutputDir   :: Flag FilePath,
+    flagBackupStateDir    :: Flag FilePath,
+    flagBackupStaticDir   :: Flag FilePath,
+    flagBackupLinkBlobs   :: Flag Bool,
+    flagBackupScrubbed    :: Flag Bool
+  }
+
+data TestBackupFlags = TestBackupFlags {
+    flagTestBackupVerbosity :: Flag Verbosity,
+    flagTestBackupStateDir  :: Flag FilePath,
+    flagTestBackupStaticDir :: Flag FilePath,
+    flagTestBackupTestDir   :: Flag FilePath,
+    flagTestBackupLinkBlobs :: Flag Bool,
+    flagTestBackupScrubbed  :: Flag Bool,
+    flagTestBackupFeatures  :: Flag String
+  }
+
+data RestoreFlags = RestoreFlags {
+    flagRestoreVerbosity :: Flag Verbosity,
+    flagRestoreStateDir  :: Flag FilePath,
+    flagRestoreStaticDir :: Flag FilePath
+  }
+
+$(join <$>
+  mkLens (++ "L") `traverse`
+  [''GlobalFlags, ''RunFlags, ''InitFlags, ''BackupFlags, ''TestBackupFlags, ''RestoreFlags])
+
 
 -------------------------------------------------------------------------------
 -- Top level command handling
@@ -119,10 +186,6 @@ main = topHandler $ do
 -- Global command
 --
 
-data GlobalFlags = GlobalFlags {
-    flagGlobalVersion :: Flag Bool
-  }
-
 defaultGlobalFlags :: GlobalFlags
 defaultGlobalFlags = GlobalFlags {
     flagGlobalVersion = Flag False
@@ -150,9 +213,9 @@ globalCommand commands = CommandUI {
                 | x <- ["init", "run"]],
     commandDefaultFlags = defaultGlobalFlags,
     commandOptions      = \_ ->
-      [option ['V'] ["version"]
+      [option' ['V'] ["version"]
          "Print version information"
-         flagGlobalVersion (\v flags -> flags { flagGlobalVersion = v })
+         flagGlobalVersionL
          (noArg (Flag True))
       ]
   }
@@ -160,57 +223,38 @@ globalCommand commands = CommandUI {
 -- Common options
 --
 
-optionVerbosity :: (a -> Flag Verbosity)
-                -> (Flag Verbosity -> a -> a)
+optionVerbosity :: ALens' a (Flag Verbosity)
                 -> OptionField a
-optionVerbosity getter setter =
+optionVerbosity l =
   option "v" ["verbose"]
     "Control verbosity (n is 0--3, default verbosity level is 1)"
-    getter setter
+    (view (cloneLens l)) (set (cloneLens l))
     (optArg "n" (fmap Flag Verbosity.flagToVerbosity)
           (Flag Verbosity.verbose)
           (fmap (Just . showForCabal) . flagToList))
 
-optionStateDir :: (a -> Flag FilePath)
-               -> (Flag FilePath -> a -> a)
+optionStateDir :: ALens' a (Flag FilePath)
                -> OptionField a
-optionStateDir getter setter =
+optionStateDir l =
   option [] ["state-dir"]
     "Directory in which to store the persistent state of the server (default state/)"
-    getter setter
+    (view (cloneLens l)) (set (cloneLens l))
     (reqArgFlag "DIR")
 
-optionStaticDir :: (a -> Flag FilePath)
-                -> (Flag FilePath -> a -> a)
+optionStaticDir :: ALens' a (Flag FilePath)
                 -> OptionField a
-optionStaticDir getter setter =
+optionStaticDir l =
   option [] ["static-dir"]
     "Directory in which to find the html templates and static files (default: cabal location)"
-    getter setter
+    (view (cloneLens l)) (set (cloneLens l))
     (reqArgFlag "DIR")
+
+option' x names desc = option x names desc <$> view . cloneLens <*> set . cloneLens
 
 
 -------------------------------------------------------------------------------
 -- Run command
 --
-
-data RunFlags = RunFlags {
-    flagRunVerbosity       :: Flag Verbosity,
-    flagRunPort            :: Flag String,
-    flagRunIP              :: Flag String,
-    flagRunTLSConfig       :: Flag TLSConfig,
-    flagRunHostURI         :: Flag String,
-    flagRunStateDir        :: Flag FilePath,
-    flagRunStaticDir       :: Flag FilePath,
-    flagRunTmpDir          :: Flag FilePath,
-    flagRunTemp            :: Flag Bool,
-    flagRunCacheDelay      :: Flag String,
-    flagRunLiveTemplates   :: Flag Bool,
-    -- Online backup flags
-    flagRunBackupOutputDir :: Flag FilePath,
-    flagRunBackupLinkBlobs :: Flag Bool,
-    flagRunBackupScrubbed  :: Flag Bool
-  }
 
 defaultRunFlags :: RunFlags
 defaultRunFlags = RunFlags {
@@ -255,52 +299,52 @@ runCommand =
                ++ " $ kill -HUP $the_pid\n"
     options _  =
       [ optionVerbosity
-          flagRunVerbosity (\v flags -> flags { flagRunVerbosity = v })
-      , option [] ["port"]
+          flagRunVerbosityL
+      , option' [] ["port"]
           "Port number to serve on (default 8080)"
-          flagRunPort (\v flags -> flags { flagRunPort = v })
+          flagRunPortL
           (reqArgFlag "PORT")
-      , option [] ["ip"]
+      , option' [] ["ip"]
           "IP address to listen on (default ::1)"
-          flagRunIP (\v flags -> flags { flagRunIP = v })
+          flagRunIPL
           (reqArgFlag "IP")
-      , option [] ["base-uri"]
+      , option' [] ["base-uri"]
           "Server's public base URI (defaults to machine name)"
-          flagRunHostURI (\v flags -> flags { flagRunHostURI = v })
+          flagRunHostURIL
           (reqArgFlag "NAME")
       , optionStateDir
-          flagRunStateDir (\v flags -> flags { flagRunStateDir = v })
+          flagRunStateDirL
       , optionStaticDir
-          flagRunStaticDir (\v flags -> flags { flagRunStaticDir = v })
-      , option [] ["tmp-dir"]
+          flagRunStaticDirL
+      , option' [] ["tmp-dir"]
           "Temporary directory in which to store file uploads (default state/tmp/)"
-          flagRunTmpDir (\v flags -> flags { flagRunTmpDir = v })
+          flagRunTmpDirL
           (reqArgFlag "DIR")
-      , option [] ["temp-run"]
+      , option' [] ["temp-run"]
           "Set up a temporary server while initializing state for maintenance restarts"
-          flagRunTemp (\v flags -> flags { flagRunTemp = v })
+          flagRunTempL
           (noArg (Flag True))
-      , option [] ["delay-cache-updates"]
+      , option' [] ["delay-cache-updates"]
           "Save time during bulk imports by delaying cache updates."
-          flagRunCacheDelay (\v flags -> flags { flagRunCacheDelay = v })
+          flagRunCacheDelayL
           (reqArgFlag "SECONDS")
-      , option ['o'] ["output-dir"]
+      , option' ['o'] ["output-dir"]
           "The directory in which to create the backup (default ./backups/)"
-          flagRunBackupOutputDir (\v flags -> flags { flagRunBackupOutputDir = v })
+          flagRunBackupOutputDirL
           (reqArgFlag "TARBALL")
-      , option [] ["hardlink-blobs"]
+      , option' [] ["hardlink-blobs"]
           ("Hard-link the blob files in the backup rather than copying them "
            ++ " (reduces disk space and I/O but is less robust to errors).")
-          flagRunBackupLinkBlobs (\v flags -> flags { flagRunBackupLinkBlobs = v })
+          flagRunBackupLinkBlobsL
           (noArg (Flag True))
-      , option [] ["scrubbed-backup"]
+      , option' [] ["scrubbed-backup"]
           ("Generate a scrubbed backup containing no user " ++
            "identifying information (for development use)")
-          flagRunBackupScrubbed (\v flags -> flags { flagRunBackupScrubbed = v })
+          flagRunBackupScrubbedL
           (noArg (Flag True))
-      , option [] ["live-templates"]
+      , option' [] ["live-templates"]
           "Do not cache templates, for quicker feedback during development."
-          flagRunLiveTemplates (\v flags -> flags { flagRunLiveTemplates = v })
+          flagRunLiveTemplatesL
           (noArg (Flag True))
       ]
 
@@ -370,11 +414,12 @@ runAction opts = do
 
     -- Option handling:
     --
-    checkPortOpt defaults Nothing    = return (loPortNum (confListenOn defaults))
-    checkPortOpt _        (Just str) = case reads str of
-      [(n,"")]  | n >= 1 && n <= 65535
-               -> return n
-      _        -> fail $ "bad port number " ++ show str
+    checkPortOpt defaults = \ case
+      Nothing  -> pure $ loPortNum (confListenOn defaults)
+      Just str -> case reads str of
+        [(n,"")]  | n >= 1 && n <= 65535
+                 -> return n
+        _        -> fail $ "bad port number " ++ show str
 
     checkHostURI defaults Nothing port = do
       let guessURI       = confHostUri defaults
@@ -490,13 +535,6 @@ checkStaticDir staticDir staticDirFlag = do
 -- Init command
 --
 
-data InitFlags = InitFlags {
-    flagInitVerbosity :: Flag Verbosity,
-    flagInitAdmin     :: Flag String,
-    flagInitStateDir  :: Flag FilePath,
-    flagInitStaticDir :: Flag FilePath
-  }
-
 defaultInitFlags :: InitFlags
 defaultInitFlags = InitFlags {
     flagInitVerbosity = Flag Verbosity.normal,
@@ -522,15 +560,15 @@ initCommand =
               ++ "bootstrap from there.\n"
     options _  =
       [ optionVerbosity
-          flagInitVerbosity (\v flags -> flags { flagInitVerbosity = v })
-      , option [] ["admin"]
+          flagInitVerbosityL
+      , option' [] ["admin"]
           "New server's administrator, name:password (default: admin:admin)"
-          flagInitAdmin (\v flags -> flags { flagInitAdmin = v })
+          flagInitAdminL
           (reqArgFlag "NAME:PASS")
       , optionStateDir
-          flagInitStateDir (\v flags -> flags { flagInitStateDir = v })
+          flagInitStateDirL
       , optionStaticDir
-          flagInitStaticDir (\v flags -> flags { flagInitStaticDir = v })
+          flagInitStaticDirL
       ]
 
 initAction :: InitFlags -> IO ()
@@ -572,15 +610,6 @@ initAction opts = do
 -- Backup command
 --
 
-data BackupFlags = BackupFlags {
-    flagBackupVerbosity   :: Flag Verbosity,
-    flagBackupOutputDir   :: Flag FilePath,
-    flagBackupStateDir    :: Flag FilePath,
-    flagBackupStaticDir   :: Flag FilePath,
-    flagBackupLinkBlobs   :: Flag Bool,
-    flagBackupScrubbed    :: Flag Bool
-  }
-
 defaultBackupFlags :: BackupFlags
 defaultBackupFlags = BackupFlags {
     flagBackupVerbosity   = Flag Verbosity.normal,
@@ -611,24 +640,24 @@ backupCommand =
               ++ "The backup can be restored using the 'restore' command.\n"
     options _  =
       [ optionVerbosity
-          flagBackupVerbosity (\v flags -> flags { flagBackupVerbosity = v })
+          flagBackupVerbosityL
       , optionStateDir
-          flagBackupStateDir (\v flags -> flags { flagBackupStateDir = v })
+          flagBackupStateDirL
       , optionStaticDir
-          flagBackupStaticDir (\v flags -> flags { flagBackupStaticDir = v })
-      , option ['o'] ["output-dir"]
+          flagBackupStaticDirL
+      , option' ['o'] ["output-dir"]
           "The directory in which to create the backup (default ./backups/)"
-          flagBackupOutputDir (\v flags -> flags { flagBackupOutputDir = v })
+          flagBackupOutputDirL
           (reqArgFlag "TARBALL")
-      , option [] ["hardlink-blobs"]
+      , option' [] ["hardlink-blobs"]
           ("Hard-link the blob files in the backup rather than copying them "
            ++ " (reduces disk space and I/O but is less robust to errors).")
-          flagBackupLinkBlobs (\v flags -> flags { flagBackupLinkBlobs = v })
+          flagBackupLinkBlobsL
           (noArg (Flag True))
-      , option [] ["scrubbed-backup"]
+      , option' [] ["scrubbed-backup"]
           ("Generate a scrubbed backup containing no user " ++
            "identifying information (for development use)")
-          flagBackupScrubbed (\v flags -> flags { flagBackupScrubbed = v })
+          flagBackupScrubbedL
           (noArg (Flag True))
       ]
 
@@ -662,16 +691,6 @@ startBackup verbosity scrubbed outputDir linkBlobs server = do
 -- Test backup command
 --
 
-data TestBackupFlags = TestBackupFlags {
-    flagTestBackupVerbosity :: Flag Verbosity,
-    flagTestBackupStateDir  :: Flag FilePath,
-    flagTestBackupStaticDir :: Flag FilePath,
-    flagTestBackupTestDir   :: Flag FilePath,
-    flagTestBackupLinkBlobs :: Flag Bool,
-    flagTestBackupScrubbed  :: Flag Bool,
-    flagTestBackupFeatures  :: Flag String
-  }
-
 defaultTestBackupFlags :: TestBackupFlags
 defaultTestBackupFlags = TestBackupFlags {
     flagTestBackupVerbosity = Flag Verbosity.normal,
@@ -701,28 +720,28 @@ testBackupCommand =
               ++ "on the\nbackup tarball.\n"
     options _  =
       [ optionVerbosity
-          flagTestBackupVerbosity (\v flags -> flags { flagTestBackupVerbosity = v })
+          flagTestBackupVerbosityL
       , optionStateDir
-          flagTestBackupStateDir (\v flags -> flags { flagTestBackupStateDir = v })
+          flagTestBackupStateDirL
       , optionStaticDir
-          flagTestBackupStaticDir (\v flags -> flags { flagTestBackupStaticDir = v })
-      , option [] ["test-dir"]
+          flagTestBackupStaticDirL
+      , option' [] ["test-dir"]
           "Temporary directory in which to store temporary information generated by the test (default test-backup/)."
-          flagTestBackupTestDir (\v flags -> flags { flagTestBackupTestDir = v })
+          flagTestBackupTestDirL
           (reqArgFlag "DIR")
-      , option [] ["hardlink-blobs"]
+      , option' [] ["hardlink-blobs"]
           ("Do a partial test, short-circuting the reading and writing of the "
            ++ "blob files (saves on disk I/O, but less test coverage).")
-          flagTestBackupLinkBlobs (\v flags -> flags { flagTestBackupLinkBlobs = v })
+          flagTestBackupLinkBlobsL
           (noArg (Flag True))
-      , option [] ["scrubbed-backup"]
+      , option' [] ["scrubbed-backup"]
           ("Generate a scrubbed backup containing no user " ++
            "identifying information (for development use)")
-          flagTestBackupScrubbed (\v flags -> flags { flagTestBackupScrubbed = v })
+          flagTestBackupScrubbedL
           (noArg (Flag True))
-      , option [] ["features"]
+      , option' [] ["features"]
           ("Only test the specified features")
-          flagTestBackupFeatures (\v flags -> flags { flagTestBackupFeatures = v })
+          flagTestBackupFeaturesL
           (reqArgFlag "FEATURES")
       ]
 
@@ -868,12 +887,6 @@ testBackupAction opts = do
 -- Restore command
 --
 
-data RestoreFlags = RestoreFlags {
-    flagRestoreVerbosity :: Flag Verbosity,
-    flagRestoreStateDir  :: Flag FilePath,
-    flagRestoreStaticDir :: Flag FilePath
-  }
-
 defaultRestoreFlags :: RestoreFlags
 defaultRestoreFlags = RestoreFlags {
     flagRestoreVerbosity = Flag Verbosity.normal,
@@ -897,11 +910,11 @@ restoreCommand =
               ++ "it requires that the\nserver not be initialised already.\n"
     options _  =
       [ optionVerbosity
-          flagRestoreVerbosity (\v flags -> flags { flagRestoreVerbosity = v })
+          flagRestoreVerbosityL
       , optionStateDir
-          flagRestoreStateDir  (\v flags -> flags { flagRestoreStateDir  = v })
+          flagRestoreStateDirL
       , optionStaticDir
-          flagRestoreStaticDir (\v flags -> flags { flagRestoreStaticDir = v })
+          flagRestoreStaticDirL
       ]
 
 restoreAction :: RestoreFlags -> [String] -> IO ()
