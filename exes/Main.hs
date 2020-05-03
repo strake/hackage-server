@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Main where
@@ -10,6 +11,7 @@ import Control.Applicative.Combinators hiding (option)
 import Control.Lens (ALens', cloneLens, set, view)
 import Control.Lens.TH (mkLens)
 import Control.Monad (guard, replicateM)
+import Control.Monad.Trans.Reader (ReaderT (..), ask)
 import Data.Bits (Bits (..))
 import Data.Filtrable (Filtrable (..), (<$?>))
 import Data.Foldable (Foldable (..), asum)
@@ -54,7 +56,7 @@ import Network.URI
          ( URI(..), URIAuth(..), parseAbsoluteURI )
 import Distribution.Simple.Command
 import Distribution.Simple.Setup
-         ( Flag(..), fromFlag, fromFlagOrDefault, flagToList, flagToMaybe )
+         ( Flag(..), fromFlag, fromFlagOrDefault, flagToList, flagToMaybe, maybeToFlag )
 import Data.Maybe
          ( isNothing )
 import Data.List
@@ -87,7 +89,9 @@ data RunFlags = RunFlags {
     flagRunVerbosity       :: Flag Verbosity,
     flagRunPort            :: Flag String,
     flagRunIP              :: Flag String,
-    flagRunTLSConfig       :: Flag TLSConfig,
+    flagRunTLSCertPath     :: Flag FilePath,
+    flagRunTLSKeyPath      :: Flag FilePath,
+    flagRunTLSCAPath       :: Flag FilePath,
     flagRunHostURI         :: Flag String,
     flagRunStateDir        :: Flag FilePath,
     flagRunStaticDir       :: Flag FilePath,
@@ -261,7 +265,9 @@ defaultRunFlags = RunFlags {
     flagRunVerbosity       = Flag Verbosity.normal,
     flagRunPort            = NoFlag,
     flagRunIP              = NoFlag,
-    flagRunTLSConfig       = NoFlag,
+    flagRunTLSCertPath     = NoFlag,
+    flagRunTLSKeyPath      = NoFlag,
+    flagRunTLSCAPath       = NoFlag,
     flagRunHostURI         = NoFlag,
     flagRunStateDir        = NoFlag,
     flagRunStaticDir       = NoFlag,
@@ -346,7 +352,27 @@ runCommand =
           "Do not cache templates, for quicker feedback during development."
           flagRunLiveTemplatesL
           (noArg (Flag True))
+      , option' [] ["tls-cert-path"]
+          "TLS certificate path"
+          flagRunTLSCertPathL
+          (reqArgFlag "PATH")
+      , option' [] ["tls-key-path"]
+          "TLS key path"
+          flagRunTLSKeyPathL
+          (reqArgFlag "PATH")
+      , option' [] ["tls-ca-path"]
+          "TLS CA path"
+          flagRunTLSCAPathL
+          (reqArgFlag "PATH")
       ]
+
+flagRunTLSConfig :: RunFlags -> Flag TLSConfig
+flagRunTLSConfig = maybeToFlag . runReaderT
+  [ TLSConfig {..}
+  | tlsCertPath <- ReaderT (flagToMaybe . flagRunTLSCertPath)
+  , tlsKeyPath <- ReaderT (flagToMaybe . flagRunTLSKeyPath)
+  , tlsCAPath <- flagToMaybe . flagRunTLSCAPath <$> ask
+  ]
 
 runAction :: RunFlags -> IO ()
 runAction opts = do

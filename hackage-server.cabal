@@ -90,6 +90,7 @@ common defaults
   default-language: Haskell2010
   default-extensions:
     LambdaCase
+    MonadComprehensions
 
   -- version ranges of pre-installed packages for GHC 7.6 through GHC 8.0
   --
