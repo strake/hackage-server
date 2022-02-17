@@ -35,7 +35,7 @@ import Distribution.Compat.Newtype
 import Distribution.Compat.Lens (Lens')
 import Distribution.Package
          ( PackageIdentifier(..) )
-import Distribution.Types.GenericPackageDescription
+import Distribution.Types.Flag
          ( FlagName, unFlagName, mkFlagName )
 import Distribution.System
          ( OS, Arch )
@@ -68,9 +68,11 @@ import Text.PrettyPrint.HughesPJ
 import Data.Serialize as Serialize
          ( Serialize(..) )
 import Data.SafeCopy
-         ( SafeCopy(..), deriveSafeCopy, extension, base, Migrate(..) )
+         ( SafeCopy(..), deriveSafeCopy, extension, base, Migrate(..), contain )
+{-
 import Test.QuickCheck
          ( Arbitrary(..), elements, oneof )
+-}
 import Text.StringTemplate ()
 import Text.StringTemplate.Classes
          ( SElem(..), ToSElem(..) )
@@ -87,6 +89,8 @@ import Data.Typeable
          ( Typeable )
 import Control.Applicative
 import Control.Monad
+import Data.Foldable
+         ( toList )
 
 import Prelude hiding (show, read)
 import qualified Prelude
@@ -212,8 +216,11 @@ read s = case parse s of
 
 parse :: BS.ByteString -> Either String BuildReport
 parse s = case snd $ runParseResult $ parseFields s of
-  Left (_, perrors) -> Left $ unlines [ err | PError _ err <- perrors ]
+  Left (_, perrors) -> Left $ unlines [ err | PError _ err <- toList perrors ]
   Right report -> Right report
+
+instance MonadFail ParseResult where
+  fail = parseFatalFailure P.zeroPos
 
 parseFields :: BS.ByteString -> ParseResult BuildReport
 parseFields input = do
@@ -366,6 +373,7 @@ instance ToSElem BuildReport where
       where
         display value = toSElem (prettyShow value)
 
+{-
 -------------------
 -- Arbitrary instances
 --
@@ -390,7 +398,7 @@ instance Arbitrary InstallOutcome where
 
 instance Arbitrary Outcome where
   arbitrary = elements [ NotTried, Failed, Ok ]
-
+-}
 
 -------------------
 -- SafeCopy instances
@@ -411,7 +419,10 @@ deriveSafeCopy 3 'extension ''BuildReport
 -- compatible that we can get away with it for now.
 newtype BuildReport_v0 = BuildReport_v0 BuildReport
 
-instance SafeCopy  BuildReport_v0
+instance SafeCopy  BuildReport_v0 where
+  getCopy = contain get
+  putCopy = contain . put
+
 instance Serialize BuildReport_v0 where
     put (BuildReport_v0 br) = Serialize.put . BS.pack . show $ br
     get = (BuildReport_v0 . read) `fmap` Serialize.get

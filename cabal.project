@@ -4,14 +4,14 @@
 -- 'tested-with' in 'hackage-server.cabal' for a list of currently
 -- CI-validated GHC versions
 
-with-compiler: ghc-8.6.5
+with-compiler: ghc-8.10.3
 
-packages: . snowball.hs
+packages: . HStringTemplate.hs snowball.hs
 
 source-repository-package
   type: git
   location: https://github.com/strake/happstack-server.hs
-  tag: 6f1f17fc6cf587e41fec09eca1df2e07b42b9306
+  tag: 79f5cd11d95648887e8d711a08a535d3403b5607
 
 source-repository-package
   type: git
@@ -20,13 +20,13 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/strake/text.hs
-  tag: 7b4ebbf400338111aae40ae3b668854cfe7272b7
+  location: https://github.com/strake/aeson.hs
+  tag: faa4bcd2be3ecb3a09835d1b6e6b13b07e8133c8
 
 source-repository-package
   type: git
-  location: https://github.com/text-utf8/attoparsec
-  tag: 785af7929415669729f51ab0abeaac4a92451900
+  location: https://github.com/strake/attoparsec.hs
+  tag: 714201533ccbefff163afff0e8f9eec1c4d68077
 
 source-repository-package
   type: git
@@ -36,44 +36,24 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/strake/lens-core.hs
-  tag: 6b39456dfe81a2057cea3d63dd74a36e46ab438f
-
-source-repository-package
-  type: git
   location: https://github.com/strake/lenz.hs
   tag: 858191e0bd59cf5520978d5a897c967c79cb2cbd
 
 source-repository-package
   type: git
   location: https://github.com/strake/lenz-template.hs
-  tag: 75a14b721e4a69df282313c6835fe7ca453a09c3
+  tag: 7573d780cabe5592265eb226edc394463892ce8b
 
 source-repository-package
   type: git
   location: https://github.com/strake/lex-applicative.hs
   tag: 066b9e150bee0c3beb38ccb90c87f57ed1f7d84e
 
-source-repository-package
-  type: git
-  location: https://github.com/feuerbach/regex-applicative
-  tag: 1a37a6fb036a57562a11b76885a87e151fb6c34e
-
-source-repository-package
-  type: git
-  location: https://github.com/strake/ucd.hs
-  tag: 29e5525e8670b88216311b51747c825fa3513195
-
-source-repository-package
-  type: git
-  location: https://github.com/strake/unicode-transforms.hs
-  tag: a6690fb4743d939c9574520f608a2158d31d69ca
-
 -----------------------------------------------------------------------------
 -- Anti-constraints
 
 -- make sure we don't accidentally pick up blacklisted packages
-constraints: foundation -none, cryptonite -none, cryptohash -none
+constraints: semigroups -none, foundation -none, cryptonite -none, cryptohash -none
 
 -----------------------------------------------------------------------------
 -- Modded lib:Cabal
@@ -109,6 +89,10 @@ constraints: foundation -none, cryptonite -none, cryptohash -none
 --   tag: 893d128f7680bedafb472c4bd45b12a87ade9166
 
 
+constraints: HsOpenSSL ==0.11.4.20, template-haskell ==2.16.0.0
+
+allow-newer: Cabal, attoparsec, base, template-haskell, text:ghc-prim, time
+
 package hackage-server
 --   tests: True
 --
@@ -116,3 +100,8 @@ package hackage-server
 --
 --   flags: +build-hackage-import
 --   flags: +cabal-parsers
+
+executable-static: true
+executable-dynamic: false
+library-for-ghci: true
+tests: False

@@ -88,7 +88,8 @@ instance MemSize SHA256Digest where
   memSize _ = 5
 
 instance SafeCopy SHA256Digest where
-  -- use default Serialize instance
+  getCopy = contain get
+  putCopy = contain . put
 
 -- For legacy reasons this length-prefixes the serialised digest
 instance Serialize SHA256Digest where

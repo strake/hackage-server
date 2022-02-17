@@ -8,6 +8,7 @@ module Distribution.Server.Features.Search.ExtractDescriptionTerms (
 
 import Distribution.Server.Prelude
 
+import Data.Foldable (asum)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Set (Set)
@@ -87,7 +88,7 @@ termsMarkup = Markup {
   markupDefList       = concatMap (\(d,t) -> d ++ t),
   markupCodeBlock     = const [],
   markupTable         = concat . F.toList,
-  markupHyperlink     = \(Hyperlink _url mLabel) -> maybeToList mLabel,
+  markupHyperlink     = \(Hyperlink _url mLabel) -> asum mLabel,
                         --TODO: extract main part of hostname
   markupAName         = const [],
   markupPic           = const [],

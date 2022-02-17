@@ -54,8 +54,10 @@ import Distribution.Package (PackageName, PackageIdentifier)
 import Distribution.Version (Version)
 import Distribution.Text    (display)
 
-import Control.Monad (when)
+import Control.Category ((<<<))
+import Control.Monad ((<=<), when)
 import Control.Monad.Trans (MonadIO, liftIO)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.List
 import Data.Maybe (isJust)
 import Data.IORef
@@ -167,12 +169,12 @@ reloadTemplates (TemplatesDesignMode _ _) = return ()
 
 getTemplate :: MonadIO m => Templates -> String -> m ([TemplateAttr] -> Template)
 getTemplate templates@(TemplatesNormalMode _ _ expectedTemplates) name = do
-    when (name `notElem` expectedTemplates) $ failMissingTemplate name
-    tryGetTemplate templates name >>= maybe (failMissingTemplate name) return
+    when (name `notElem` expectedTemplates) $ unExceptTIO $ failMissingTemplate name
+    tryGetTemplate templates name >>= maybe (unExceptTIO $ failMissingTemplate name) return
 
 getTemplate templates@(TemplatesDesignMode _ expectedTemplates) name = do
-    when (name `notElem` expectedTemplates) $ failMissingTemplate name
-    tryGetTemplate templates name >>= maybe (failMissingTemplate name) return
+    when (name `notElem` expectedTemplates) $ unExceptTIO $ failMissingTemplate name
+    tryGetTemplate templates name >>= maybe (unExceptTIO $ failMissingTemplate name) return
 
 tryGetTemplate :: MonadIO m => Templates -> String -> m (Maybe ([TemplateAttr] -> Template))
 tryGetTemplate (TemplatesNormalMode templateGroupRef _ _) name = do
@@ -186,13 +188,16 @@ tryGetTemplate (TemplatesNormalMode templateGroupRef _ _) name = do
 
 tryGetTemplate (TemplatesDesignMode templateDirs expectedTemplates) name = do
     templateGroup <- liftIO $ loadTemplateGroup templateDirs
-    checkTemplates templateGroup templateDirs expectedTemplates
+    unExceptTIO $ checkTemplates templateGroup templateDirs expectedTemplates
     let tkind     = templateKindFromExt name
         mtemplate = fmap (\t -> Template tkind
                               . applyEscaping tkind
                               . applyTemplateAttrs t)
                          (getStringTemplate name templateGroup)
     return mtemplate
+
+unExceptTIO :: MonadIO m => ExceptT String IO a -> m a
+unExceptTIO = liftIO <<< either fail pure <=< runExceptT
 
 templateKindFromExt :: FilePath -> TemplateKind
 templateKindFromExt tname =
@@ -222,7 +227,7 @@ templateContentType OtherTemplate = "text/plain"
 applyTemplateAttrs :: RawTemplate -> [TemplateAttr] -> RawTemplate
 applyTemplateAttrs = foldl' (\t' (TemplateAttr a) -> a t')
 
-failMissingTemplate :: Monad m => String -> m a
+failMissingTemplate :: MonadFail m => String -> m a
 failMissingTemplate name =
   fail $ "getTemplate: request for unexpected template " ++ name
       ++ ". So we can do load-time checking, all templates used "
@@ -235,7 +240,7 @@ loadTemplateGroup templateDirs = do
 --                 `catchJust` IOError
     return (foldr1 (flip addSuperGroup) templateGroup)
 
-checkTemplates :: Monad m => RawTemplateGroup -> [FilePath] -> [String] -> m ()
+checkTemplates :: MonadFail m => RawTemplateGroup -> [FilePath] -> [String] -> m ()
 checkTemplates templateGroup templateDirs expectedTemplates = do
     let checks    = [ (t, fmap checkTemplate
                                (getStringTemplate t templateGroup))

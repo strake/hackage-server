@@ -210,10 +210,6 @@ specVersionChecks specVerOk specVer = do
   when (specVer >= mkVersion [1,25] && specVer < mkVersion [2]) $
     throwError "'cabal-version' in unassigned >=1.25 && <2 range; use 'cabal-version: 2.0' instead"
 
-  -- Safeguard; should already be caught by parser
-  unless (specVer < mkVersion [2,5]) $
-    throwError "'cabal-version' must be lower than 2.5"
-
   -- Check whether a known spec version had been used
   -- TODO: move this into lib:Cabal
   let knownSpecVersions = map mkVersion [ [1,18], [1,20], [1,22], [1,24], [2,0], [2,2], [2,4] ]

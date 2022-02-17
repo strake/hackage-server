@@ -355,7 +355,7 @@ packageNames :: Package pkg => PackageIndex pkg -> [PackageName]
 packageNames (PackageIndex m) = Map.keys m
 
 ---------------------------------- State for PackageIndex
-instance (Package pkg, SafeCopy pkg) => SafeCopy (PackageIndex pkg) where
+instance (Package pkg, SafeCopy pkg, Typeable pkg) => SafeCopy (PackageIndex pkg) where
   putCopy index = contain $ do
     safePut $ allPackages index
   getCopy = contain $ do

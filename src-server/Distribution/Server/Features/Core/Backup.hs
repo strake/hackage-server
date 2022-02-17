@@ -31,6 +31,7 @@ import Data.Version (Version(..), showVersion)
 import Text.CSV
 
 import Control.Arrow (first)
+import Data.Foldable (toList)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Vector as Vec
@@ -198,7 +199,7 @@ partialToFullPkg (pkgId, PartialPkg{..}) = do
 
     case runParseResult $ parseGenericPackageDescription $
          BS.toStrict $ cabalFileByteString latestCabalFile of
-      (_, Left (_, errs)) -> fail $ unlines (map (showPError filename) errs)
+      (_, Left (_, errs)) -> fail $ unlines (map (showPError filename) (toList errs))
       (_, Right _)        -> return ()
 
     return PkgInfo {

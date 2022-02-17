@@ -33,6 +33,8 @@ import Data.Time.Format (formatTime)
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import qualified Distribution.Server.Util.GZip as GZip
 
+import Data.List.NonEmpty (NonEmpty (..))
+
 import Distribution.Package
 import Distribution.Text
 
@@ -243,8 +245,7 @@ mirrorFeature ServerEnv{serverBlobStore = store}
             filename = display pkgid <.> "cabal"
 
         case runParseResult $ parseGenericPackageDescription $ BS.L.toStrict $ fileContent of
-            (_, Left (_, err:_)) -> badRequest (toResponse $ showPError filename err)
-            (_, Left (_, []))    -> badRequest (toResponse "failed to parse")
+            (_, Left (_, err:|_)) -> badRequest (toResponse $ showPError filename err)
             (_, Right pkg) | pkgid /= packageId pkg ->
                 errBadRequest "Wrong package Id"
                   [MText $ "Expected " ++ display pkgid

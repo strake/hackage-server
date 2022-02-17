@@ -61,6 +61,7 @@ import Distribution.Package
 import Distribution.Version
 import Distribution.Text (display)
 import Distribution.PackageDescription
+import Distribution.Utils.ShortText (fromShortText)
 
 import Data.Char (toLower)
 import Data.List (intercalate, intersperse, insert)
@@ -1198,7 +1199,7 @@ mkHtmlCandidates HtmlUtilities{..}
                     , toHtml ": "
                     , toHtml $ intersperse (toHtml ", ") $ flip map pkgs $ \pkg ->
                          anchor ! [href $ corePackageIdUri candidatesCore "" (packageId pkg)] << display (packageVersion pkg)
-                    , toHtml $ ". " ++ synopsis desc
+                    , toHtml $ ". " ++ fromShortText (synopsis desc)
                     ]
 
     servePackageCandidates :: Resource -> DynamicPath -> ServerPartE Response

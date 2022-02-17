@@ -12,11 +12,13 @@ module Distribution.Server.Util.ParseSpecVer
 
 import           Distribution.Server.Prelude
 
+import           Control.Arrow ((+++), (***))
 import           Data.ByteString       (ByteString)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BC8
 import qualified Data.ByteString.Lazy  as BSL
 import qualified Data.ByteString.Lazy.Char8 as BC8L
+import           Data.Foldable (toList)
 import           Distribution.Text
 import           Distribution.Pretty ( prettyShow )
 import           Distribution.Parsec ( PWarning, PError )
@@ -283,14 +285,14 @@ scanSpecVersionLazy bs = do
 -- 'True' is returned in the first element if sanity checks passes.
 parseGenericPackageDescriptionChecked :: BSL.ByteString -> (Bool,[PWarning], Either (Maybe Version, [PError]) GenericPackageDescription)
 parseGenericPackageDescriptionChecked bs = case parseGenericPackageDescription' bs of
-   (warns, pe@(Left _)) -> (False, warns, pe)
+   (warns, pe@(Left _)) -> (False, warns, ((id *** toList) +++ id) pe)
    (warns, Right gpd)   -> (isOk (specVersion (packageDescription gpd)),warns, Right gpd)
  where
    isOk :: Version -> Bool
    isOk v
      | v /= parseSpecVerLazy bs           = False
      | Just v' <- scanSpecVersionLazy bs  = v == v'
-     | otherwise                          = v < mkVersion [2,3]
+     | otherwise                          = True
 
 #if defined(MIN_VERSION_cabal_parsers)
    parseGenericPackageDescription' bs' = compatParseGenericPackageDescription (BSL.toStrict bs')

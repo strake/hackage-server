@@ -29,6 +29,7 @@ import Distribution.PackageDescription
 import Distribution.PackageDescription.Configuration
 import Distribution.License (License(..), licenseFromSPDX)
 import qualified Distribution.SPDX as SPDX
+import Distribution.Utils.ShortText (fromShortText)
 
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -315,7 +316,7 @@ constructImmutableTagIndex = foldl' addToTags emptyPackageTags . PackageIndex.al
 
 -- These are constructed when a package is uploaded/on startup
 constructCategoryTags :: PackageDescription -> [Tag]
-constructCategoryTags = map (tagify . map toLower) . fillMe . categorySplit . category
+constructCategoryTags = map (tagify . map toLower) . fillMe . categorySplit . fromShortText . category
   where
     fillMe [] = ["unclassified"]
     fillMe xs = xs

@@ -54,7 +54,7 @@ class CountingMap k a | a -> k where
   cmToList :: a -> [(k, Int)]
 
   cmToCSV        :: a -> CSV
-  cmInsertRecord :: Monad m => Record -> a -> m (a, Int)
+  cmInsertRecord :: MonadFail m => Record -> a -> m (a, Int)
 
 instance (Ord k, Typeable k, Parsec k, Pretty k) => CountingMap k (SimpleCountingMap k) where
   cmEmpty = SCM (NCM 0 Map.empty)
@@ -114,7 +114,7 @@ instance (Typeable k, Parsec k, Pretty k, Ord k, Eq l, CountingMap l a) => Count
   cmInsertRecord [] _ =
     fail "cmInsertRecord: Invalid record"
 
-cmFromCSV :: (Monad m, CountingMap k a) => CSV -> m a
+cmFromCSV :: (MonadFail m, CountingMap k a) => CSV -> m a
 cmFromCSV = go cmEmpty
   where
     go acc []     = return acc
@@ -139,10 +139,10 @@ instance MemSize a => MemSize (SimpleCountingMap a) where
 instance (MemSize a, MemSize b) => MemSize (NestedCountingMap a b) where
   memSize (NCM a b) = memSize2 a b
 
-instance (Ord a, SafeCopy a, SafeCopy b) => SafeCopy (NestedCountingMap a b) where
+instance (Ord a, SafeCopy a, SafeCopy b, Typeable a, Typeable b) => SafeCopy (NestedCountingMap a b) where
   putCopy (NCM total m) = contain $ do safePut total ; safePut m
   getCopy = contain $ NCM <$> safeGet <*> safeGet
 
-instance (Ord a, SafeCopy a) => SafeCopy (SimpleCountingMap a) where
+instance (Ord a, SafeCopy a, Typeable a) => SafeCopy (SimpleCountingMap a) where
   putCopy (SCM m) = contain $ safePut m
   getCopy = contain $ SCM <$> safeGet

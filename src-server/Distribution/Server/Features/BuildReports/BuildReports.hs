@@ -178,7 +178,9 @@ instance MemSize PkgBuildReports where
 --
 
 newtype BuildReportId_v0 = BuildReportId_v0 Int deriving (Serialize, Enum, Eq, Ord)
-instance SafeCopy BuildReportId_v0
+instance SafeCopy BuildReportId_v0 where
+    getCopy = contain Serialize.get
+    putCopy = contain . Serialize.put
 
 instance Migrate BuildReportId where
     type MigrateFrom BuildReportId = BuildReportId_v0
@@ -187,7 +189,9 @@ instance Migrate BuildReportId where
 ---
 
 newtype BuildLog_v0 = BuildLog_v0 BlobStorage.BlobId_v0 deriving Serialize
-instance SafeCopy BuildLog_v0
+instance SafeCopy BuildLog_v0 where
+    getCopy = contain Serialize.get
+    putCopy = contain . Serialize.put
 
 instance Migrate BuildLog where
     type MigrateFrom BuildLog = BuildLog_v0
@@ -198,7 +202,10 @@ instance Migrate BuildLog where
 data BuildReports_v0 = BuildReports_v0
                          !(Map.Map PackageIdentifier_v0 PkgBuildReports_v0)
 
-instance SafeCopy  BuildReports_v0
+instance SafeCopy  BuildReports_v0 where
+    getCopy = contain Serialize.get
+    putCopy = contain . Serialize.put
+
 instance Serialize BuildReports_v0 where
     put (BuildReports_v0 index) = Serialize.put index
     get = BuildReports_v0 <$> Serialize.get
@@ -214,7 +221,10 @@ data PkgBuildReports_v0 = PkgBuildReports_v0
                            !(Map BuildReportId_v0 (BuildReport_v0, Maybe BuildLog_v0))
                            !BuildReportId_v0
 
-instance SafeCopy  PkgBuildReports_v0
+instance SafeCopy  PkgBuildReports_v0 where
+    getCopy = contain Serialize.get
+    putCopy = contain . Serialize.put
+
 instance Serialize PkgBuildReports_v0 where
     put (PkgBuildReports_v0 listing _) = Serialize.put listing
     get = mkReports <$> Serialize.get

@@ -18,6 +18,7 @@ import Distribution.Package
 import Distribution.PackageDescription as P
 import Distribution.Version
 import Distribution.Text        (display)
+import Distribution.Utils.ShortText (fromShortText)
 import Text.XHtml.Strict hiding (p, name, title, content)
 import qualified Text.XHtml.Strict as XHtml
 
@@ -129,7 +130,7 @@ packagePageTemplate render
       [ templateVal "name"          pkgName
       , templateVal "version"       pkgVer
       , templateVal "license"       (Old.rendLicense render)
-      , templateVal "author"        (toHtml $ author desc)
+      , templateVal "author"        (toHtml $ fromShortText $ author desc)
       , templateVal "maintainer"    (Old.maintainField $ rendMaintainer render)
       , templateVal "buildDepends"  (snd (Old.renderDependencies render))
       , templateVal "optional"      optionalPackageInfoTemplate
@@ -144,10 +145,10 @@ packagePageTemplate render
     -- Access via "$package.optional.varname$"
     optionalPackageInfoTemplate = templateDict $
       [ templateVal "hasDescription"
-          (if (description $ rendOther render) == [] then False else True)
+          ((description $ rendOther render) /= mempty)
       , templateVal "description"
           (Old.renderHaddock (Old.moduleToDocUrl render docURL)
-                             (description $ rendOther render))
+                             (fromShortText $ description $ rendOther render))
       ] ++
 
       [ templateVal "hasReadme"
@@ -157,45 +158,45 @@ packagePageTemplate render
       ] ++
 
       [ templateVal "hasChangelog"
-          (if rendChangeLog render == Nothing then False else True)
+          (any (pure True) $ rendChangeLog render)
       , templateVal "changelog"
           (renderChangelog render)
       ] ++
 
       [ templateVal "hasCopyright"
-          (if P.copyright desc == "" then False else True)
+          (P.copyright desc /= mempty)
       , templateVal "copyright"
           renderCopyright
       ] ++
 
       [ templateVal "hasCategories"
-          (if rendCategory render == [] then False else True)
+          (rendCategory render /= [])
       , templateVal "category"
           (commaList . map Old.categoryField $ rendCategory render)
       ] ++
 
       [ templateVal "hasHomePage"
-          (if (homepage desc  == []) then False else True)
+          (homepage desc  /= mempty)
       , templateVal "homepage"
-          (homepage desc)
+          (fromShortText $ homepage desc)
       ] ++
 
       [ templateVal "hasBugTracker"
-          (if bugReports desc == [] then False else True)
+          (bugReports desc /= mempty)
       , templateVal "bugTracker"
-          (bugReports desc)
+          (fromShortText $ bugReports desc)
       ] ++
 
       [ templateVal "hasSourceRepository"
-          (if sourceRepos desc == [] then False else True)
+          (sourceRepos desc /= [])
       , templateVal "sourceRepository"
           (vList $ map sourceRepositoryToHtml (sourceRepos desc))
       ] ++
 
       [ templateVal "hasSynopsis"
-          (if synopsis (rendOther render) == "" then False else True)
+          (synopsis (rendOther render) /= mempty)
       , templateVal "synopsis"
-          (synopsis (rendOther render))
+          (fromShortText $ synopsis (rendOther render))
       ]
 
 
@@ -206,10 +207,9 @@ packagePageTemplate render
     desc = rendOther render
 
     renderCopyright :: Html
-    renderCopyright = toHtml $ case text of
+    renderCopyright = toHtml $ case fromShortText $ P.copyright desc of
       "" -> "None provided"
-      _ -> text
-      where text = P.copyright desc
+      text -> text
 
     renderUpdateInfo :: Int -> UTCTime -> Maybe UserInfo -> Html
     renderUpdateInfo revisionNo utime uinfo =
@@ -236,9 +236,9 @@ packagePageTemplate render
       Just (_,_,_,fname) -> anchor ! [href (rendPkgUri r </> "changelog")] << takeFileName fname
 
     renderStability :: PackageDescription -> Html
-    renderStability d = case actualStability of
+    renderStability d = case fromShortText actualStability of
       "" -> toHtml "Unknown"
-      _  -> toHtml actualStability
+      text -> toHtml text
       where actualStability = stability d
 
     deprHtml :: Maybe [PackageName] -> Html

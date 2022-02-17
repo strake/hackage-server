@@ -18,6 +18,7 @@ import qualified Distribution.Server.Framework.ResponseContentTypes as Resource
 import Distribution.Server.Framework.BlobStorage (BlobId)
 import qualified Distribution.Server.Framework.BlobStorage as BlobStorage
 import qualified Distribution.Server.Util.ServeTarball as ServerTarball
+import Distribution.Server.Util.DocMeta (DocMeta)
 import qualified Distribution.Server.Util.DocMeta as DocMeta
 import Data.TarIndex (TarIndex)
 import qualified Codec.Archive.Tar       as Tar
@@ -32,6 +33,7 @@ import qualified Data.Map as Map
 import Data.Function (fix)
 
 import Data.Aeson (toJSON)
+import qualified Data.Aeson as Aeson
 
 import Data.Time.Clock (NominalDiffTime, diffUTCTime, getCurrentTime)
 import System.Directory (getModificationTime)
@@ -369,9 +371,9 @@ checkDocTarball pkgid =
       case Tar.entryContent entry of
         Tar.NormalFile content size
           | size <= maxDocMetaFileSize ->
-              case DocMeta.parseDocMeta content of
-                Just _ -> remainder
-                Nothing -> Left "meta.json is invalid"
+              case Aeson.eitherDecode content of
+                Right a -> pure remainder (a :: DocMeta)
+                Left err -> Left ("meta.json is invalid: " ++ err)
           | otherwise -> Left "meta.json too large"
         _ -> Left "meta.json not a file"
 
@@ -383,8 +385,8 @@ checkDocTarball pkgid =
   Auxiliary
 ------------------------------------------------------------------------------}
 
-mapParaM :: Monad m => (a -> m b) -> [a] -> m [(a, b)]
-mapParaM f = mapM (\x -> (,) x `liftM` f x)
+mapParaM :: (Applicative m, Traversable t) => (a -> m b) -> t a -> m (t (a, b))
+mapParaM f = traverse (\x -> (,) x <$> f x)
 
 getFileAge :: FilePath -> IO NominalDiffTime
 getFileAge file = diffUTCTime <$> getCurrentTime <*> getModificationTime file

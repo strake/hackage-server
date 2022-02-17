@@ -23,7 +23,7 @@ import Distribution.Server.Framework.MemSize
 import Distribution.Package  (PackageIdentifier(..))
 import Distribution.Compiler (CompilerFlavor(..), CompilerId(..))
 import Distribution.System   (OS(..), Arch(..))
-import Distribution.Types.GenericPackageDescription (FlagName, mkFlagName, unFlagName)
+import Distribution.Types.Flag (FlagName, mkFlagName, unFlagName)
 import Distribution.Types.PackageName
 import Distribution.Version
 import Distribution.Pretty (Pretty(pretty), prettyShow)
@@ -37,7 +37,7 @@ import Text.Read (readMaybe)
 
 import Data.Serialize as Serialize
 import Data.SafeCopy hiding (Version)
-import Test.QuickCheck
+--import Test.QuickCheck
 
 import Data.Aeson.Types as Aeson
 
@@ -349,6 +349,8 @@ instance Parsec UTCTime where
         Just t  -> return t
     where
       digit2 = replicateM 2 P.digit
+
+{-
 -------------------
 -- Arbitrary instances
 --
@@ -404,6 +406,7 @@ instance Arbitrary UTCTime where
     shrink ut@(UTCTime day dayTime) =
         [ ut { utctDay     = d' } | d' <- shrink day     ] ++
         [ ut { utctDayTime = t' } | t' <- shrink dayTime ]
+-}
 
 --------------------------
 -- Old SafeCopy versions
@@ -413,6 +416,8 @@ newtype PackageIdentifier_v0 = PackageIdentifier_v0 PackageIdentifier
     deriving (Eq, Ord)
 
 instance SafeCopy PackageIdentifier_v0 where
+    getCopy = contain get
+    putCopy = contain . put
     errorTypeName _ = "PackageIdentifier_v0"
 
 instance Serialize PackageIdentifier_v0 where
